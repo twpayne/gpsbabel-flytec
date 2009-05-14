@@ -1,0 +1,12 @@
+*.o
+Makefile
+config.h
+config.log
+config.status
+gpsbabel
+jeeps/Makefile
+shapelib/Makefile
+tools/mkcapabilities
+win32/gpsbabel.rc
+xmldoc/makedoc
+zlib/empty
