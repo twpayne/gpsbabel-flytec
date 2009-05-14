@@ -47,6 +47,7 @@ extern ff_vecs_t coto_vecs;
 extern ff_vecs_t cst_vecs;
 extern ff_vecs_t dg100_vecs;
 extern ff_vecs_t easygps_vecs;
+extern ff_vecs_t flytec_vecs;
 extern ff_vecs_t garmin_vecs;
 extern ff_vecs_t garmin_txt_vecs;
 extern ff_vecs_t gcdb_vecs;
@@ -875,6 +876,12 @@ vecs_t vec_list[] = {
         	"skyforce",
         	"Skymap / KMD150 ascii files",
         	NULL
+        },
+        {
+                &flytec_vecs,
+                "flytec",
+                "Braeuniger/Flytec flight recorders (serial)",
+                NULL
         },
         
 
