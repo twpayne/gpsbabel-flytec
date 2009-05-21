@@ -25,6 +25,7 @@
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -371,6 +372,49 @@ track_new(const char *p)
 	return track;
 }
 
+	static waypoint *
+waypoint_new(const char *p)
+{
+	waypoint *w = waypt_new();
+	p = match_literal(p, "PBRWPS,");
+	int lat_deg = 0, lat_min = 0, lat_mmin = 0;
+	p = match_n_digits(p, 2, &lat_deg);
+	p = match_n_digits(p, 2, &lat_min);
+	p = match_char(p, '.');
+	p = match_n_digits(p, 3, &lat_mmin);
+	w->latitude = (60000 * lat_deg + 1000 * lat_min + lat_mmin) / 60000.0;
+	p = match_char(p, ',');
+	char lat_hemi = 'N';
+	p = match_one_of(p, "NS", &lat_hemi);
+	if (lat_hemi == 'S')
+		w->latitude = -w->latitude;
+	p = match_char(p, ',');
+	int lon_deg = 0, lon_min = 0, lon_mmin = 0;
+	p = match_n_digits(p, 3, &lon_deg);
+	p = match_n_digits(p, 2, &lon_min);
+	p = match_char(p, '.');
+	p = match_n_digits(p, 3, &lon_mmin);
+	w->longitude = (60000 * lon_deg + 1000 * lon_min + lon_mmin) / 60000.0;
+	p = match_char(p, ',');
+	char lon_hemi = 'E';
+	p = match_one_of(p, "EW", &lon_hemi);
+	if (lon_hemi == 'W')
+		w->longitude = -w->longitude;
+	p = match_char(p, ',');
+	p = match_string_until(p, ',', 1, &w->shortname);
+	char *c = w->shortname + strlen(w->shortname) - 1;
+	while (c > w->shortname && *c == ' ')
+		*c-- = '\0';
+	p = match_string_until(p, ',', 1, &w->description);
+	c = w->description + strlen(w->description) - 1;
+	while (c > w->description && *c == ' ')
+		*c-- = '\0';
+	int ele = 0;
+	p = match_unsigned(p, &ele);
+	w->altitude = ele;
+	return w;
+}
+
 	static flytec_t *
 flytec_new(const char *device, FILE *logfile)
 {
@@ -543,6 +587,7 @@ flytec_gets_nmea(flytec_t *flytec, char *buf, int size)
 	return buf;
 _error:
 	error("%s: invalid NMEA response", flytec->device);
+	return 0;
 }
 
 	static void
@@ -671,78 +716,95 @@ flytec_pbrtr(flytec_t *flytec, track_t *track, void (*callback)(void *, const ch
 	flytec_expectc(flytec, XON);
 }
 
+	static void
+flytec_pbrwpr(flytec_t *flytec, const waypoint *w)
+{
+	long lat = abs(60000.0 * w->latitude) + 0.5;
+	long lat_deg = lat / 60000;
+	double lat_min = (lat % 60000) / 1000.0;
+	char lat_hemi = w->latitude < 0.0 ? 'S' : 'N';
+	long lon = abs(60000.0 * w->longitude) + 0.5;
+	long lon_deg = lon / 60000;
+	double lon_min = (lon % 60000) / 1000.0;
+	char lon_hemi = w->longitude < 0.0 ? 'W' : 'E';
+	char name[18];
+	int result = snprintf(name, sizeof name, "%s %s", w->shortname, w->description);
+	if (result < 0)
+		DIE("snprintf", errno);
+	long ele = abs(w->altitude) + 0.5;
+	if (ele > 9999) {
+		ele = 9999;
+	} else if (ele < -999) {
+		ele  = -999;
+	}
+	char buffer[64];
+	result = snprintf(buffer, sizeof buffer, "PBRWPR,%02ld%06.3f,%c,%03ld%06.3f,%c,,%-17s,%04ld", lat_deg, lat_min, lat_hemi, lon_deg, lon_min, lon_hemi, name, ele);
+	if (result < 0 || sizeof buffer <= result)
+		DIE("snprintf", errno);
+	flytec_puts_nmea(flytec, buffer);
+	flytec_expectc(flytec, XOFF);
+	flytec_expectc(flytec, XON);
+}
+
+	static void flytec_pbrwps(flytec_t *flytec)
+{
+	flytec_puts_nmea(flytec, "PBRWPS,");
+	flytec_expectc(flytec, XOFF);
+	char line[128];
+	while (flytec_gets_nmea(flytec, line, sizeof line)) {
+		waypt_add(waypoint_new(line));
+	}
+	flytec_expectc(flytec, XON);
+}
+
 /*******************************************************************************
  * %%%		 global callbacks called by gpsbabel main process			   %%% *
  *******************************************************************************/
 
+static flytec_t *flytec_rd = 0;
+
 	static void
 flytec_rd_init(const char *fname)
 {
-	//	fin = gbfopen(fname, "r", MYNAME);
+	flytec_rd = flytec_new(fname, 0);
 }
 
 	static void 
 flytec_rd_deinit(void)
 {
-	//	gbfclose(fin);
+	flytec_delete(flytec_rd);
 }
 
 	static void
 flytec_read(void)
 {
-	//	your special code to extract waypoint, route and track
-	//	information from gbfile "fin"
-	//
-	// Sample text-file read code:
-	//	char *s;
-	//	while ((s = gbfgetstr(fin))) {
-	//		do_anything(s);
-	//	}
-	//
-	//
-	// For waypoints:
-	//		   while (have waypoints) {
-	//				   waypoint = waypt_new()
-	//				   populate waypoint
-	//				   waypt_add(waypoint);
-	//		   }
-	// 
-	// For routes:
-	// 
-	//		   route = route_head_alloc();
-	//		   populate struct route_hdr
-	//	   route_add_head(route);	   
-	//		   while (have more routepoints) {
-	//				   waypoint = waypt_new()
-	//				   populate waypoint
-	//				   route_add_wpt(route, waypoint)
-	//		   }
-	// 
-	// Tracks are just like routes, except the word "track" replaces "routes".
-	//
+	flytec_pbrwps(flytec_rd);
 }
 
-static flytec_t *flytec;
+static flytec_t *flytec_wr = 0;
 
 static void
 flytec_wr_init(const char *fname)
 {
-	flytec = flytec_new(fname, NULL);
+	flytec_wr = flytec_new(fname, 0);
 }
 
 static void
 flytec_wr_deinit(void)
 {
-	flytec_delete(flytec);
+	flytec_delete(flytec_wr);
+}
+
+static void
+flytec_waypoint_write(const waypoint *w)
+{
+	flytec_pbrwpr(flytec_wr, w);
 }
 
 static void
 flytec_write(void)
 {
-	// Here is how you register callbacks for all waypoints, routes, tracks.
-	// waypt_disp_all(waypt)
-	// route_disp_all(head, tail, rtept);
-	// track_disp_all(head, tail, trkpt);
+	waypt_disp_all(flytec_waypoint_write);
 }
 
 static void
