@@ -817,7 +817,7 @@ static flytec_t *flytec_wr = 0;
 static void
 flytec_wr_init(const char *fname)
 {
-	flytec_wr = flytec_new(fname, 0);
+	flytec_wr = flytec_new(fname, flytec_debug ? stderr : 0);
 }
 
 static void
