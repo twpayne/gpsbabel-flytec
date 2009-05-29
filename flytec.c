@@ -194,7 +194,8 @@ match_string_until(const char *p, char c, int consume, char **result)
 	const char *start = p;
 	while (*p && *p != c)
 		++p;
-	if (!p) return 0;
+	if (!p)
+		return 0;
 	*result = xmalloc(p - start + 1);
 	memcpy(*result, start, p - start);
 	(*result)[p - start] = '\0';
@@ -208,7 +209,8 @@ match_until_eol(const char *p)
 		return 0;
 	while (*p && *p != '\r')
 		++p;
-	if (*p != '\r') return 0;
+	if (*p != '\r')
+		return 0;
 	++p;
 	return *p == '\n' ? ++p : 0;
 }
