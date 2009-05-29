@@ -710,7 +710,7 @@ flytec_pbrwpr(flytec_t *flytec, const waypoint *w)
 	int result = snprintf(name, sizeof name, "%s %s", w->shortname, w->description);
 	if (result < 0)
 		DIE("snprintf", errno);
-	long ele = abs(w->altitude) + 0.5;
+	long ele = w->altitude;
 	if (ele > 9999) {
 		ele = 9999;
 	} else if (ele < -999) {
