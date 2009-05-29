@@ -74,11 +74,6 @@ typedef struct {
 	char *software_version;
 } snp_t;
 
-// snp_t *snp_new(const char *);
-// void snp_delete(snp_t *);
-
-// const char *manufacturer_new(const char *);
-
 typedef struct {
     int count;
     int index;
