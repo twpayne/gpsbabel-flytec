@@ -797,7 +797,7 @@ flytec_exit(void)		/* optional */
 // please change this depending on your new module 
 
 ff_vecs_t flytec_vecs = {
-	ff_type_file,
+	ff_type_serial,
 	{ 
 		ff_cap_read | ff_cap_write	/* waypoints */, 
 		ff_cap_none				/* tracks */, 
