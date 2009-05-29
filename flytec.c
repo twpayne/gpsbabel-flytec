@@ -40,14 +40,10 @@
 #define MYNAME "flytec"
 
 
-// Any arg in this list will appear in command line help and will be 
-// populated for you.
-// Values for ARGTYPE_xxx can be found in defs.h and are used to 
-// select the type of option.
+static char *flytec_debug = 0;
 static
 arglist_t flytec_args[] = {
-// {"foo", &fooopt, "The text of the foo option in help", 
-//   "default", ARGYTPE_STRING, ARG_NOMINMAX} , 
+	{ "debug", &flytec_debug, "Enable debugging", NULL, ARGTYPE_BOOL, ARG_NOMINMAX },
 	ARG_TERMINATOR
 };
 
@@ -763,7 +759,7 @@ static flytec_t *flytec_rd = 0;
 	static void
 flytec_rd_init(const char *fname)
 {
-	flytec_rd = flytec_new(fname, 0);
+	flytec_rd = flytec_new(fname, flytec_debug ? stderr : 0);
 }
 
 	static void 
