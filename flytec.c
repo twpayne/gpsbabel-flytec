@@ -206,24 +206,55 @@ match_eos(const char *p)
 }
 
 	static const char *
-match_b_record(const char *p, struct tm *tm)
+match_b_record(const char *p, struct tm *tm, route_head *track)
 {
+	waypoint *w = waypt_new();
 	p = match_char(p, 'B');
-	if (!p)
-		return 0;
-	int hour = 0, min = 0, sec = 0;
-	p = match_n_digits(p, 2, &hour);
-	p = match_n_digits(p, 2, &min);
-	p = match_n_digits(p, 2, &sec);
-	if (!p)
-		return 0;
+	struct tm _tm = *tm;
+	p = match_n_digits(p, 2, &_tm.tm_hour);
+	p = match_n_digits(p, 2, &_tm.tm_min);
+	p = match_n_digits(p, 2, &_tm.tm_sec);
+	w->creation_time = mktime(&_tm);
+	int lat = 0, lat_min = 0, lat_mmin = 0;
+	p = match_n_digits(p, 2, &lat);
+	p = match_n_digits(p, 2, &lat_min);
+	p = match_n_digits(p, 3, &lat_mmin);
+	w->latitude = lat + lat_min / 60.0 + lat_mmin / 60000.0;
+	char lat_hemi = 0;
+	p = match_one_of(p, "NS", &lat_hemi);
+	if (lat_hemi == 'S')
+		w->latitude = -w->latitude;
+	int lon = 0, lon_min = 0, lon_mmin = 0;
+	p = match_n_digits(p, 3, &lon);
+	p = match_n_digits(p, 2, &lon_min);
+	p = match_n_digits(p, 3, &lon_mmin);
+	w->longitude = lon + lon_min / 60.0 + lon_mmin / 60000.0;
+	char lon_hemi = 0;
+	p = match_one_of(p, "EW", &lon_hemi);
+	if (lon_hemi == 'W')
+		w->longitude = -w->longitude;
+	char av = 0;
+	p = match_one_of(p, "AV", &av);
+	switch (av) {
+		case 'A':
+			w->fix = fix_3d;
+			break;
+		case 'V':
+			w->fix = fix_2d;
+			break;
+	}
+	int alt = 0, ele = 0;
+	p = match_n_digits(p, 5, &alt);
+	w->altitude = alt;
+	p = match_n_digits(p, 5, &ele);
 	p = match_until_eol(p);
 	if (!p)
-		return 0;
-	tm->tm_hour = hour;
-	tm->tm_min = min;
-	tm->tm_sec = sec;
+		goto error;
+	track_add_wpt(track, w);
 	return p;
+error:
+	waypt_del(w);
+	return 0;
 }
 
 	static const char *
@@ -570,13 +601,25 @@ _error:
 }
 
 	static void
-flytec_pbrigc(flytec_t *flytec, void (*callback)(void *, const char *), void *data)
+flytec_pbrigc(flytec_t *flytec)
 {
 	flytec_puts_nmea(flytec, "PBRIGC,");
 	flytec_expectc(flytec, XOFF);
 	char line[128];
-	while (flytec_gets(flytec, line, sizeof line))
-		callback(data, line);
+	route_head *track = route_head_alloc();
+	track_add_head(track);
+	struct tm tm;
+	memset(&tm, 0, sizeof tm);
+	while (flytec_gets(flytec, line, sizeof line)) {
+		switch (line[0]) {
+			case 'B':
+				match_b_record(line, &tm, track);
+				break;
+			case 'H':
+				match_hfdte_record(line, &tm);
+				break;
+		}
+	}
 	flytec_expectc(flytec, XON);
 }
 
@@ -758,6 +801,15 @@ flytec_rd_deinit(void)
 flytec_read(void)
 {
 	flytec_pbrwps(flytec_rd);
+	char *tz = getenv("TZ");
+	setenv("TZ", "", 1);
+	tzset();
+	flytec_pbrigc(flytec_rd);
+	if (tz)
+		setenv("TZ", tz, 1);
+	else
+		unsetenv("TZ");
+	tzset();
 }
 
 static flytec_t *flytec_wr = 0;
@@ -800,7 +852,7 @@ ff_vecs_t flytec_vecs = {
 	ff_type_serial,
 	{ 
 		ff_cap_read | ff_cap_write	/* waypoints */, 
-		ff_cap_none				/* tracks */, 
+		ff_cap_read				/* tracks */, 
 		ff_cap_none				/* routes */
 	},
 	flytec_rd_init,	
