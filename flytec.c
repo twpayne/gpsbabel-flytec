@@ -395,49 +395,6 @@ track_new(const char *p)
 	return track;
 }
 
-	static waypoint *
-waypoint_new(const char *p)
-{
-	waypoint *w = waypt_new();
-	p = match_literal(p, "PBRWPS,");
-	int lat_deg = 0, lat_min = 0, lat_mmin = 0;
-	p = match_n_digits(p, 2, &lat_deg);
-	p = match_n_digits(p, 2, &lat_min);
-	p = match_char(p, '.');
-	p = match_n_digits(p, 3, &lat_mmin);
-	w->latitude = (60000 * lat_deg + 1000 * lat_min + lat_mmin) / 60000.0;
-	p = match_char(p, ',');
-	char lat_hemi = 'N';
-	p = match_one_of(p, "NS", &lat_hemi);
-	if (lat_hemi == 'S')
-		w->latitude = -w->latitude;
-	p = match_char(p, ',');
-	int lon_deg = 0, lon_min = 0, lon_mmin = 0;
-	p = match_n_digits(p, 3, &lon_deg);
-	p = match_n_digits(p, 2, &lon_min);
-	p = match_char(p, '.');
-	p = match_n_digits(p, 3, &lon_mmin);
-	w->longitude = (60000 * lon_deg + 1000 * lon_min + lon_mmin) / 60000.0;
-	p = match_char(p, ',');
-	char lon_hemi = 'E';
-	p = match_one_of(p, "EW", &lon_hemi);
-	if (lon_hemi == 'W')
-		w->longitude = -w->longitude;
-	p = match_char(p, ',');
-	p = match_string_until(p, ',', 1, &w->shortname);
-	char *c = w->shortname + strlen(w->shortname) - 1;
-	while (c > w->shortname && *c == ' ')
-		*c-- = '\0';
-	p = match_string_until(p, ',', 1, &w->description);
-	c = w->description + strlen(w->description) - 1;
-	while (c > w->description && *c == ' ')
-		*c-- = '\0';
-	int ele = 0;
-	p = match_unsigned(p, &ele);
-	w->altitude = ele;
-	return w;
-}
-
 	static flytec_t *
 flytec_new(const char *device, FILE *logfile)
 {
@@ -831,13 +788,55 @@ flytec_pbrwpr(flytec_t *flytec, const waypoint *w)
 	flytec_expectc(flytec, XON);
 }
 
-	static void flytec_pbrwps(flytec_t *flytec)
+	static void
+flytec_pbrwps(flytec_t *flytec)
 {
 	flytec_puts_nmea(flytec, "PBRWPS,");
 	flytec_expectc(flytec, XOFF);
 	char line[128];
 	while (flytec_gets_nmea(flytec, line, sizeof line)) {
-		waypt_add(waypoint_new(line));
+		const char *p = line;
+		p = match_literal(p, "PBRWPS,");
+		int lat_deg = 0, lat_min = 0, lat_mmin = 0;
+		p = match_n_digits(p, 2, &lat_deg);
+		p = match_n_digits(p, 2, &lat_min);
+		p = match_char(p, '.');
+		p = match_n_digits(p, 3, &lat_mmin);
+		p = match_char(p, ',');
+		char lat_hemi = '\0';
+		p = match_one_of(p, "NS", &lat_hemi);
+		p = match_char(p, ',');
+		int lon_deg = 0, lon_min = 0, lon_mmin = 0;
+		p = match_n_digits(p, 3, &lon_deg);
+		p = match_n_digits(p, 2, &lon_min);
+		p = match_char(p, '.');
+		p = match_n_digits(p, 3, &lon_mmin);
+		p = match_char(p, ',');
+		char lon_hemi = '\0';
+		p = match_one_of(p, "EW", &lon_hemi);
+		p = match_char(p, ',');
+		char *shortname = 0, *name = 0;
+		p = match_string_until(p, ',', 1, &shortname);
+		p = match_string_until(p, ',', 1, &name);
+		int ele = 0;
+		p = match_unsigned(p, &ele);
+		p = match_eos(p);
+		if (p) {
+			waypoint *w = waypt_new();
+			w->latitude = lat_deg + lat_min / 60.0 + lat_mmin / 60000.0;
+			if (lat_hemi == 'S')
+				w->latitude = -w->latitude;
+			w->longitude = lon_deg + lon_min / 60.0 + lon_mmin / 60000.0;
+			if (lon_hemi == 'W')
+				w->longitude = -w->longitude;
+			w->altitude = ele;
+			w->shortname = rstrip(shortname);
+			w->description = rstrip(name);
+			waypt_add(w);
+		} else {
+			free(shortname);
+			free(name);
+		}
 	}
 	flytec_expectc(flytec, XON);
 }
