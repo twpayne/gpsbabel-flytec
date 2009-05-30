@@ -99,9 +99,9 @@ typedef struct {
 die(const char *file, int line, const char *function, const char *message, int _errno)
 {
 	if (_errno)
-		fatal(MYNAME "%s:%d: %s: %s: %s", file, line, function, message, strerror(_errno));
+		fatal(MYNAME ":%s:%d: %s: %s: %s\n", file, line, function, message, strerror(_errno));
 	else
-		fatal(MYNAME "%s:%d: %s: %s", file, line, function, message);
+		fatal(MYNAME ":%s:%d: %s: %s\n", file, line, function, message);
 }
 
 	static char *
@@ -407,9 +407,9 @@ flytec_new(const char *device, FILE *logfile)
 	flytec->device = device;
 	flytec->fd = open(flytec->device, O_NOCTTY | O_NONBLOCK | O_RDWR);
 	if (flytec->fd == -1)
-		fatal(MYNAME "open: %s: %s", flytec->device, strerror(errno));
+		fatal(MYNAME ":open: %s: %s", flytec->device, strerror(errno));
 	if (tcflush(flytec->fd, TCIOFLUSH) == -1)
-		fatal(MYNAME "tcflush: %s: %s", flytec->device, strerror(errno));
+		fatal(MYNAME ":tcflush: %s: %s", flytec->device, strerror(errno));
 	struct termios termios;
 	memset(&termios, 0, sizeof termios);
 	termios.c_iflag = IGNPAR;
@@ -417,7 +417,7 @@ flytec_new(const char *device, FILE *logfile)
 	cfsetispeed(&termios, B57600);
 	cfsetospeed(&termios, B57600);
 	if (tcsetattr(flytec->fd, TCSANOW, &termios) == -1)
-		fatal(MYNAME "tcsetattr: %s: %s", flytec->device, strerror(errno));
+		fatal(MYNAME ":tcsetattr: %s: %s", flytec->device, strerror(errno));
 	flytec->logfile = logfile;
 	return flytec;
 }
@@ -456,7 +456,7 @@ flytec_fill(flytec_t *flytec)
 	if (rc == -1)
 		DIE("select", errno);
 	else if (rc == 0)
-		fatal(MYNAME "%s: timeout waiting for data", flytec->device);
+		fatal(MYNAME ":%s: timeout waiting for data", flytec->device);
 	else if (!FD_ISSET(flytec->fd, &readfds))
 		DIE("select", 0);
 	int n;
@@ -485,7 +485,7 @@ flytec_getc(flytec_t *flytec)
 flytec_expectc(flytec_t *flytec, char c)
 {
 	if (flytec_getc(flytec) != c)
-		fatal(MYNAME "%s: unexpected character", flytec->device);
+		fatal(MYNAME ":%s: unexpected character", flytec->device);
 }
 
 	static void
@@ -570,7 +570,7 @@ flytec_gets_nmea(flytec_t *flytec, char *buf, int size)
 	buf[len - 6] = '\0';
 	return buf;
 _error:
-	fatal(MYNAME "%s: invalid NMEA response", flytec->device);
+	fatal(MYNAME ":%s: invalid NMEA response", flytec->device);
 	return 0;
 }
 
@@ -655,7 +655,7 @@ flytec_pbrsnp(flytec_t *flytec)
 		DIE("flytec_gets_nmea", 0);
 	flytec->snp = snp_new(line);
 	if (!flytec->snp)
-		fatal(MYNAME "%s: invalid response", flytec->device);
+		fatal(MYNAME ":%s: invalid response", flytec->device);
 	flytec_expectc(flytec, XON);
 	/* strip leading and trailing spaces from pilot name */
 	char *pilot_name = flytec->snp->pilot_name;
@@ -687,12 +687,12 @@ flytec_pbrtl(flytec_t *flytec, const char *manufacturer, int filename_format)
 	while (flytec_gets_nmea(flytec, line, sizeof line)) {
 		track_t *track = track_new(line);
 		if (!track)
-			fatal(MYNAME "%s: invalid response", flytec->device);
+			fatal(MYNAME ":%s: invalid response", flytec->device);
 		if (track->index != index++)
-			fatal(MYNAME "%s: inconsistent data", flytec->device);
+			fatal(MYNAME ":%s: inconsistent data", flytec->device);
 		if (flytec->trackv) {
 			if (track->count != flytec->trackc)
-				fatal(MYNAME "%s: inconsistent data", flytec->device);
+				fatal(MYNAME ":%s: inconsistent data", flytec->device);
 		} else {
 			flytec->trackc = track->count;
 			flytec->trackv = xmalloc((flytec->trackc + 1) * sizeof(track_t *));
@@ -721,7 +721,7 @@ flytec_pbrtl(flytec_t *flytec, const char *manufacturer, int filename_format)
 					memset(track->igc_filename, 0, 128);
 					rc = snprintf(track->igc_filename, 128, "%04d-%02d-%02d-%s-%d-%02d.IGC", DATE_YEAR(track->date) + 1900, DATE_MON(track->date) + 1, DATE_MDAY(track->date), manufacturer, flytec->serial_number, track->day_index);
 					if (rc < 0 || rc > 128)
-						fatal(MYNAME "snprintf");
+						fatal(MYNAME ":snprintf");
 					break;
 				case 1:
 					track->igc_filename = xmalloc(16);
@@ -732,7 +732,7 @@ flytec_pbrtl(flytec_t *flytec, const char *manufacturer, int filename_format)
 					serial_number[3] = '\0';
 					rc = snprintf(track->igc_filename, 16, "%c%c%c%c%s%c.IGC", base36[DATE_YEAR(track->date) % 10], base36[DATE_MON(track->date) + 1], base36[DATE_MDAY(track->date)], manufacturer[0], serial_number, base36[track->day_index]);
 					if (rc < 0 || rc > 16)
-						fatal(MYNAME "snprintf");
+						fatal(MYNAME ":snprintf");
 					break;
 			}
 		}
@@ -867,7 +867,7 @@ flytec_route_write_head(const route_head *r)
 	name[sizeof name - 1] = '\0';
 	char buffer[128];
 	if (snprintf(buffer, sizeof buffer, "PBRRTR,99,%02d,00,%-17s", flytec_wr->waypoint_count + 1, name) != 33)
-		fatal(MYNAME "snprintf");
+		fatal(MYNAME ":snprintf");
 	flytec_puts_nmea(flytec_wr, buffer);
 	flytec_expectc(flytec_wr, XOFF);
 	flytec_expectc(flytec_wr, XON);
@@ -881,7 +881,7 @@ flytec_route_write_waypoint(const waypoint *w)
 	name[sizeof name - 1] = '\0';
 	char buffer[128];
 	if (snprintf(buffer, sizeof buffer, "PBRRTR,99,%02d,%02d,,%-17s", flytec_wr->waypoint_count + 1, ++flytec_wr->waypoint_index, name) != 34)
-		fatal(MYNAME "snprintf");
+		fatal(MYNAME ":snprintf");
 	flytec_puts_nmea(flytec_wr, buffer);
 	flytec_expectc(flytec_wr, XOFF);
 	flytec_expectc(flytec_wr, XON);
