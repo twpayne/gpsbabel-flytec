@@ -69,13 +69,13 @@ typedef struct {
 } snp_t;
 
 typedef struct {
-    int count;
-    int index;
-    int date;
-    int day_index;
-    time_t time;
-    int duration;
-    char *igc_filename;
+	int count;
+	int index;
+	int date;
+	int day_index;
+	time_t time;
+	int duration;
+	char *igc_filename;
 } track_t;
 
 typedef struct {
@@ -86,8 +86,8 @@ typedef struct {
 	const char *manufacturer;
 	char *pilot_name;
 	int serial_number;
-    int trackc;
-    track_t **trackv;
+	int trackc;
+	track_t **trackv;
 	int waypoint_count;
 	int waypoint_index;
 	char *next;
