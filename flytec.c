@@ -22,18 +22,14 @@
  */
 
 #include "defs.h"
+#include "gbser.h"
 #include <ctype.h>
 #include <errno.h>
-#include <fcntl.h>
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/select.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <termios.h>
 #include <time.h>
 #include <unistd.h>
 
@@ -80,7 +76,7 @@ typedef struct {
 
 typedef struct {
 	const char *device;
-	int fd;
+	void *handle;
 	FILE *logfile;
 	snp_t *snp;
 	const char *manufacturer;
@@ -405,19 +401,11 @@ flytec_new(const char *device, FILE *logfile)
 	flytec_t *flytec = xmalloc(sizeof(flytec_t));
 	memset(flytec, 0, sizeof *flytec);
 	flytec->device = device;
-	flytec->fd = open(flytec->device, O_NOCTTY | O_NONBLOCK | O_RDWR);
-	if (flytec->fd == -1)
-		fatal(MYNAME ":open: %s: %s\n", flytec->device, strerror(errno));
-	if (tcflush(flytec->fd, TCIOFLUSH) == -1)
-		fatal(MYNAME ":tcflush: %s: %s\n", flytec->device, strerror(errno));
-	struct termios termios;
-	memset(&termios, 0, sizeof termios);
-	termios.c_iflag = IGNPAR;
-	termios.c_cflag = CLOCAL | CREAD | CS8;
-	cfsetispeed(&termios, B57600);
-	cfsetospeed(&termios, B57600);
-	if (tcsetattr(flytec->fd, TCSANOW, &termios) == -1)
-		fatal(MYNAME ":tcsetattr: %s: %s\n", flytec->device, strerror(errno));
+	flytec->handle = gbser_init(device);
+	if (!flytec->handle)
+		fatal(MYNAME ":gbser_init: %s: %s\n", flytec->device, strerror(errno));
+	if (gbser_set_port(flytec->handle, 57600, 8, 0, 1) != gbser_OK)
+		fatal(MYNAME ":gbser_set_port: %s: %s\n", flytec->device, strerror(errno));
 	flytec->logfile = logfile;
 	return flytec;
 }
@@ -433,8 +421,7 @@ flytec_delete(flytec_t *flytec)
 				track_delete(*track);
 			free(flytec->trackv);
 		}
-		if (close(flytec->fd) == -1)
-			DIE("close", errno);
+		gbser_deinit(flytec->handle);
 		free(flytec->pilot_name);
 		free(flytec);
 	}
@@ -443,30 +430,9 @@ flytec_delete(flytec_t *flytec)
 	static void
 flytec_fill(flytec_t *flytec)
 {
-	fd_set readfds;
-	FD_ZERO(&readfds);
-	FD_SET(flytec->fd, &readfds);
-	int rc;
-	do {
-		struct timeval timeout;
-		timeout.tv_sec = 0;
-		timeout.tv_usec = 250 * 1000;
-		rc = select(flytec->fd + 1, &readfds, 0, 0, &timeout);
-	} while (rc == -1 && errno == EINTR);
-	if (rc == -1)
-		DIE("select", errno);
-	else if (rc == 0)
-		fatal(MYNAME ":%s: timeout waiting for data\n", flytec->device);
-	else if (!FD_ISSET(flytec->fd, &readfds))
-		DIE("select", 0);
-	int n;
-	do {
-		n = read(flytec->fd, flytec->buf, sizeof flytec->buf);
-	} while (n == -1 && errno == EINTR);
-	if (n == -1)
-		DIE("read", errno);
-	else if (n == 0)
-		DIE("read", 0);
+	int n = gbser_read(flytec->handle, flytec->buf, sizeof flytec->buf);
+	if (n == gbser_ERROR)
+		fatal(MYNAME ":gbser_read: %s: %s\n", flytec->device, strerror(errno));
 	flytec->next = flytec->buf;
 	flytec->end = flytec->buf + n;
 }
@@ -502,12 +468,7 @@ flytec_puts_nmea(flytec_t *flytec, char *s)
 		DIE("snprintf", 0);
 	if (flytec->logfile)
 		fprintf(flytec->logfile, "> %s", buf);
-	int rc;
-	do {
-		rc = write(flytec->fd, buf, len);
-	} while (rc == -1 && errno == EINTR);
-	if (rc == -1)
-		DIE("write", errno);
+	int n = gbser_write(flytec->handle, buf, len);
 	free(buf);
 }
 
