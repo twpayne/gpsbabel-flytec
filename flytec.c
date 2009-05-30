@@ -1,6 +1,6 @@
 /*
 
-    Braeuniger/Flytec serial protocol.
+    Brauniger/Flytec serial protocol.
 
     Copyright (C) 2009  Tom Payne, twpayne@gmail.com
     Copyright (C) 2005  Robert Lipe, robertlipe@usa.net

@@ -880,7 +880,7 @@ vecs_t vec_list[] = {
         {
                 &flytec_vecs,
                 "flytec",
-                "Braeuniger/Flytec flight recorders (serial)",
+                "Brauniger/Flytec flight recorders (serial)",
                 NULL
         },
         
