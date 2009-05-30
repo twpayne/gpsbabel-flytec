@@ -628,16 +628,15 @@ flytec_pbrrts(flytec_t *flytec)
 				free(name);
 			}
 		} else {
-			char *shortname = 0, *name = 0;
-			p = match_string_until(p, ',', 1, &shortname);
+			char *name = 0;
+			p = match_string_until(p, ',', 1, 0);
 			p = match_string_until(p, '\0', 0, &name);
 			p = match_eos(p);
 			if (p) {
-				const waypoint *w = find_waypt_by_name(rstrip(shortname));
+				const waypoint *w = find_waypt_by_name(rstrip(name));
 				if (w)
 					route_add_wpt(route, waypt_dupe(w));
 			}
-			free(shortname);
 			free(name);
 		}
 	}
@@ -760,36 +759,6 @@ flytec_pbrtr(flytec_t *flytec, track_t *track, void (*callback)(void *, const ch
 }
 
 	static void
-flytec_pbrwpr(flytec_t *flytec, const waypoint *w)
-{
-	long lat = abs(60000.0 * w->latitude) + 0.5;
-	long lat_deg = lat / 60000;
-	double lat_min = (lat % 60000) / 1000.0;
-	char lat_hemi = w->latitude < 0.0 ? 'S' : 'N';
-	long lon = abs(60000.0 * w->longitude) + 0.5;
-	long lon_deg = lon / 60000;
-	double lon_min = (lon % 60000) / 1000.0;
-	char lon_hemi = w->longitude < 0.0 ? 'W' : 'E';
-	char name[18];
-	int result = snprintf(name, sizeof name, "%s %s", w->shortname, w->description);
-	if (result < 0)
-		DIE("snprintf", errno);
-	long ele = w->altitude;
-	if (ele > 9999) {
-		ele = 9999;
-	} else if (ele < -999) {
-		ele  = -999;
-	}
-	char buffer[64];
-	result = snprintf(buffer, sizeof buffer, "PBRWPR,%02ld%06.3f,%c,%03ld%06.3f,%c,,%-17s,%04ld", lat_deg, lat_min, lat_hemi, lon_deg, lon_min, lon_hemi, name, ele);
-	if (result < 0 || sizeof buffer <= result)
-		DIE("snprintf", errno);
-	flytec_puts_nmea(flytec, buffer);
-	flytec_expectc(flytec, XOFF);
-	flytec_expectc(flytec, XON);
-}
-
-	static void
 flytec_pbrwps(flytec_t *flytec)
 {
 	flytec_puts_nmea(flytec, "PBRWPS,");
@@ -816,8 +785,8 @@ flytec_pbrwps(flytec_t *flytec)
 		char lon_hemi = '\0';
 		p = match_one_of(p, "EW", &lon_hemi);
 		p = match_char(p, ',');
-		char *shortname = 0, *name = 0;
-		p = match_string_until(p, ',', 1, &shortname);
+		char *name = 0;
+		p = match_string_until(p, ',', 1, 0);
 		p = match_string_until(p, ',', 1, &name);
 		int ele = 0;
 		p = match_unsigned(p, &ele);
@@ -831,11 +800,9 @@ flytec_pbrwps(flytec_t *flytec)
 			if (lon_hemi == 'W')
 				w->longitude = -w->longitude;
 			w->altitude = ele;
-			w->shortname = rstrip(shortname);
-			w->description = rstrip(name);
+			w->shortname = rstrip(name);
 			waypt_add(w);
 		} else {
-			free(shortname);
 			free(name);
 		}
 	}
@@ -910,7 +877,7 @@ flytec_route_write_head(const route_head *r)
 flytec_route_write_waypoint(const waypoint *w)
 {
 	char name[18];
-	strncpy(name, w->description, sizeof name);
+	strncpy(name, w->shortname, sizeof name);
 	name[sizeof name - 1] = '\0';
 	char buffer[128];
 	if (snprintf(buffer, sizeof buffer, "PBRRTR,99,%02d,%02d,,%-17s", flytec_wr->waypoint_count + 1, ++flytec_wr->waypoint_index, name) != 34)
@@ -923,7 +890,29 @@ flytec_route_write_waypoint(const waypoint *w)
 	static void
 flytec_waypoint_write(const waypoint *w)
 {
-	flytec_pbrwpr(flytec_wr, w);
+	long lat = abs(60000.0 * w->latitude) + 0.5;
+	long lat_deg = lat / 60000;
+	double lat_min = (lat % 60000) / 1000.0;
+	char lat_hemi = w->latitude < 0.0 ? 'S' : 'N';
+	long lon = abs(60000.0 * w->longitude) + 0.5;
+	long lon_deg = lon / 60000;
+	double lon_min = (lon % 60000) / 1000.0;
+	char lon_hemi = w->longitude < 0.0 ? 'W' : 'E';
+	char name[18];
+	strncpy(name, w->shortname, sizeof name);
+	name[sizeof name - 1] = '\0';
+	long ele = w->altitude;
+	if (ele > 9999) {
+		ele = 9999;
+	} else if (ele < -999) {
+		ele  = -999;
+	}
+	char buffer[64];
+	if (snprintf(buffer, sizeof buffer, "PBRWPR,%02ld%06.3f,%c,%03ld%06.3f,%c,,%-17s,%04ld", lat_deg, lat_min, lat_hemi, lon_deg, lon_min, lon_hemi, name, ele) != 53)
+		DIE("snprintf", errno);
+	flytec_puts_nmea(flytec_wr, buffer);
+	flytec_expectc(flytec_wr, XOFF);
+	flytec_expectc(flytec_wr, XON);
 }
 
 	static void
