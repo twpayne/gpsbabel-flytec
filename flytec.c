@@ -597,10 +597,9 @@ flytec_pbrrts(flytec_t *flytec)
 {
 	flytec_puts_nmea(flytec, "PBRRTS,");
 	flytec_expectc(flytec, XOFF);
-	char buf[128];
 	route_head *route = 0;
-	const char *line;
-	while ((line = flytec_gets_nmea(flytec, buf, sizeof buf))) {
+	char line[128];
+	while (flytec_gets_nmea(flytec, line, sizeof line)) {
 		const char *p = line;
 		p = match_literal(p, "PBRRTS,");
 		int index = 0, count = 0, routepoint_index = 0;
@@ -610,10 +609,8 @@ flytec_pbrrts(flytec_t *flytec)
 		p = match_char(p, ',');
 		p = match_unsigned(p, &routepoint_index);
 		p = match_char(p, ',');
-		if (!p) {
-			fprintf(stderr, "failed head: %s\n", line);
+		if (!p)
 			continue;
-		}
 		if (routepoint_index == 0) {
 			char *name = 0;
 			p = match_string_until(p, '\0', 0, &name);
