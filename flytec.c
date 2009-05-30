@@ -88,6 +88,8 @@ typedef struct {
 	int serial_number;
     int trackc;
     track_t **trackv;
+	int waypoint_count;
+	int waypoint_index;
 	char *next;
 	char *end;
 	char buf[128];
@@ -887,6 +889,36 @@ flytec_wr_deinit(void)
 }
 
 	static void
+flytec_route_write_head(const route_head *r)
+{
+	flytec_wr->waypoint_count = r->rte_waypt_ct;
+	flytec_wr->waypoint_index = 0;
+	char name[18];
+	strncpy(name, r->rte_name, sizeof name);
+	name[sizeof name - 1] = '\0';
+	char buffer[128];
+	if (snprintf(buffer, sizeof buffer, "PBRRTR,99,%02d,00,%-17s", flytec_wr->waypoint_count + 1, name) != 33)
+		fatal(MYNAME "snprintf");
+	flytec_puts_nmea(flytec_wr, buffer);
+	flytec_expectc(flytec_wr, XOFF);
+	flytec_expectc(flytec_wr, XON);
+}
+
+	static void
+flytec_route_write_waypoint(const waypoint *w)
+{
+	char name[18];
+	strncpy(name, w->description, sizeof name);
+	name[sizeof name - 1] = '\0';
+	char buffer[128];
+	if (snprintf(buffer, sizeof buffer, "PBRRTR,99,%02d,%02d,,%-17s", flytec_wr->waypoint_count + 1, ++flytec_wr->waypoint_index, name) != 34)
+		fatal(MYNAME "snprintf");
+	flytec_puts_nmea(flytec_wr, buffer);
+	flytec_expectc(flytec_wr, XOFF);
+	flytec_expectc(flytec_wr, XON);
+}
+
+	static void
 flytec_waypoint_write(const waypoint *w)
 {
 	flytec_pbrwpr(flytec_wr, w);
@@ -896,6 +928,7 @@ flytec_waypoint_write(const waypoint *w)
 flytec_write(void)
 {
 	waypt_disp_all(flytec_waypoint_write);
+	route_disp_all(flytec_route_write_head, 0, flytec_route_write_waypoint);
 }
 
 	static void
@@ -911,9 +944,9 @@ flytec_exit(void)		/* optional */
 ff_vecs_t flytec_vecs = {
 	ff_type_serial,
 	{ 
-		ff_cap_read | ff_cap_write	/* waypoints */, 
-		ff_cap_read				/* tracks */, 
-		ff_cap_read				/* routes */
+		ff_cap_read | ff_cap_write /* waypoints */, 
+		ff_cap_read                /* tracks */, 
+		ff_cap_read | ff_cap_write /* routes */
 	},
 	flytec_rd_init,	
 	flytec_wr_init,	
