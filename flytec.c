@@ -215,7 +215,7 @@ match_eos(const char *p)
 }
 
 	static const char *
-match_b_record(const char *p, struct tm *tm, route_head *track)
+match_b_record(const char *p, struct tm *tm, route_head **track)
 {
 	waypoint *w = waypt_new();
 	p = match_char(p, 'B');
@@ -259,7 +259,11 @@ match_b_record(const char *p, struct tm *tm, route_head *track)
 	p = match_until_eol(p);
 	if (!p)
 		goto error;
-	track_add_wpt(track, w);
+	if (!*track) {
+		*track = route_head_alloc();
+		track_add_head(*track);
+	}
+	track_add_wpt(*track, w);
 	return p;
 error:
 	waypt_del(w);
@@ -615,14 +619,13 @@ flytec_pbrigc(flytec_t *flytec)
 	flytec_puts_nmea(flytec, "PBRIGC,");
 	flytec_expectc(flytec, XOFF);
 	char line[128];
-	route_head *track = route_head_alloc();
-	track_add_head(track);
+	route_head *track = 0;
 	struct tm tm;
 	memset(&tm, 0, sizeof tm);
 	while (flytec_gets(flytec, line, sizeof line)) {
 		switch (line[0]) {
 			case 'B':
-				match_b_record(line, &tm, track);
+				match_b_record(line, &tm, &track);
 				break;
 			case 'H':
 				match_hfdte_record(line, &tm);
