@@ -874,31 +874,31 @@ flytec_read(void)
 
 static flytec_t *flytec_wr = 0;
 
-static void
+	static void
 flytec_wr_init(const char *fname)
 {
 	flytec_wr = flytec_new(fname, flytec_debug ? stderr : 0);
 }
 
-static void
+	static void
 flytec_wr_deinit(void)
 {
 	flytec_delete(flytec_wr);
 }
 
-static void
+	static void
 flytec_waypoint_write(const waypoint *w)
 {
 	flytec_pbrwpr(flytec_wr, w);
 }
 
-static void
+	static void
 flytec_write(void)
 {
 	waypt_disp_all(flytec_waypoint_write);
 }
 
-static void
+	static void
 flytec_exit(void)		/* optional */
 {
 }
