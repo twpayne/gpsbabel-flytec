@@ -102,6 +102,15 @@ die(const char *file, int line, const char *function, const char *message, int _
 		fatal(MYNAME "%s:%d: %s: %s", file, line, function, message);
 }
 
+	static char *
+rstrip(char *s)
+{
+	char *p = s + strlen(s) - 1;
+	while (p >= s && *p == ' ')
+		*p-- = '\0';
+	return s;
+}
+
 	static inline const char *
 match_char(const char *p, char c)
 {
@@ -623,6 +632,57 @@ flytec_pbrigc(flytec_t *flytec)
 	flytec_expectc(flytec, XON);
 }
 
+	static void
+flytec_pbrrts(flytec_t *flytec)
+{
+	flytec_puts_nmea(flytec, "PBRRTS,");
+	flytec_expectc(flytec, XOFF);
+	char buf[128];
+	route_head *route = 0;
+	const char *line;
+	while ((line = flytec_gets_nmea(flytec, buf, sizeof buf))) {
+		const char *p = line;
+		p = match_literal(p, "PBRRTS,");
+		int index = 0, count = 0, routepoint_index = 0;
+		p = match_unsigned(p, &index);
+		p = match_char(p, ',');
+		p = match_unsigned(p, &count);
+		p = match_char(p, ',');
+		p = match_unsigned(p, &routepoint_index);
+		p = match_char(p, ',');
+		if (!p) {
+			fprintf(stderr, "failed head: %s\n", line);
+			continue;
+		}
+		if (routepoint_index == 0) {
+			char *name = 0;
+			p = match_string_until(p, '\0', 0, &name);
+			p = match_eos(p);
+			if (p) {
+				route = route_head_alloc();
+				route->rte_num = index + 1;
+				route->rte_name = rstrip(name);
+				route_add_head(route);
+			} else {
+				free(name);
+			}
+		} else {
+			char *shortname = 0, *name = 0;
+			p = match_string_until(p, ',', 1, &shortname);
+			p = match_string_until(p, '\0', 0, &name);
+			p = match_eos(p);
+			if (p) {
+				const waypoint *w = find_waypt_by_name(rstrip(shortname));
+				if (w)
+					route_add_wpt(route, waypt_dupe(w));
+			}
+			free(shortname);
+			free(name);
+		}
+	}
+	flytec_expectc(flytec, XON);
+}
+
 	static snp_t *
 flytec_pbrsnp(flytec_t *flytec)
 {
@@ -801,6 +861,7 @@ flytec_rd_deinit(void)
 flytec_read(void)
 {
 	flytec_pbrwps(flytec_rd);
+	flytec_pbrrts(flytec_rd);
 	char *tz = getenv("TZ");
 	setenv("TZ", "", 1);
 	tzset();
@@ -853,7 +914,7 @@ ff_vecs_t flytec_vecs = {
 	{ 
 		ff_cap_read | ff_cap_write	/* waypoints */, 
 		ff_cap_read				/* tracks */, 
-		ff_cap_none				/* routes */
+		ff_cap_read				/* routes */
 	},
 	flytec_rd_init,	
 	flytec_wr_init,	
