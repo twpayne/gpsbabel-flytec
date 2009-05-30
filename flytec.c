@@ -189,9 +189,11 @@ match_string_until(const char *p, char c, int consume, char **result)
 		++p;
 	if (!p)
 		return 0;
-	*result = xmalloc(p - start + 1);
-	memcpy(*result, start, p - start);
-	(*result)[p - start] = '\0';
+	if (result) {
+		*result = xmalloc(p - start + 1);
+		memcpy(*result, start, p - start);
+		(*result)[p - start] = '\0';
+	}
 	return consume ? ++p : p;
 }
 
