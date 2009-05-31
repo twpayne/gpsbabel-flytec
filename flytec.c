@@ -407,9 +407,9 @@ flytec_new(const char *device, FILE *logfile)
 	flytec->device = device;
 	flytec->fd = open(flytec->device, O_NOCTTY | O_NONBLOCK | O_RDWR);
 	if (flytec->fd == -1)
-		fatal(MYNAME ":open: %s: %s", flytec->device, strerror(errno));
+		fatal(MYNAME ":open: %s: %s\n", flytec->device, strerror(errno));
 	if (tcflush(flytec->fd, TCIOFLUSH) == -1)
-		fatal(MYNAME ":tcflush: %s: %s", flytec->device, strerror(errno));
+		fatal(MYNAME ":tcflush: %s: %s\n", flytec->device, strerror(errno));
 	struct termios termios;
 	memset(&termios, 0, sizeof termios);
 	termios.c_iflag = IGNPAR;
@@ -417,7 +417,7 @@ flytec_new(const char *device, FILE *logfile)
 	cfsetispeed(&termios, B57600);
 	cfsetospeed(&termios, B57600);
 	if (tcsetattr(flytec->fd, TCSANOW, &termios) == -1)
-		fatal(MYNAME ":tcsetattr: %s: %s", flytec->device, strerror(errno));
+		fatal(MYNAME ":tcsetattr: %s: %s\n", flytec->device, strerror(errno));
 	flytec->logfile = logfile;
 	return flytec;
 }
@@ -456,7 +456,7 @@ flytec_fill(flytec_t *flytec)
 	if (rc == -1)
 		DIE("select", errno);
 	else if (rc == 0)
-		fatal(MYNAME ":%s: timeout waiting for data", flytec->device);
+		fatal(MYNAME ":%s: timeout waiting for data\n", flytec->device);
 	else if (!FD_ISSET(flytec->fd, &readfds))
 		DIE("select", 0);
 	int n;
